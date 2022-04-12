@@ -86,8 +86,9 @@ async def help(message):
 
 @dp.message_handler(commands='clear')
 async def clear(message: types.Message):
-    data[message.chat.id]['like'] = set()
-    await message.answer(text="Список пуст")
+    a = set()
+    data[message.chat.id]['like'].clear()
+    await message.answer(text="Список очищен")
 
 
 @dp.message_handler(content_types='text', text="Парсер рюкзака")
@@ -246,16 +247,16 @@ async def call_handler_parse(call: types.CallbackQuery):
             await call.message.answer_photo(photo=elem["photo"], caption=f"[{elem['name']}]({elem['link']})",
                                             parse_mode="Markdown", disable_notification=True,
                                             reply_markup=like_markup
-                                            if tuple([elem['link'], elem['name']]) not in data[call.message.chat.id][
-                                                "like"]
+                                            if tuple([elem['link'], elem['name']])
+                                               not in data[call.message.chat.id]["like"]
                                             else dislike_markup)
         except RetryAfter as error:
             await asyncio.sleep(error.timeout)
             await call.message.answer_photo(photo=elem["photo"], caption=f"[{elem['name']}]({elem['link']})",
                                             parse_mode="Markdown", disable_notification=True,
                                             reply_markup=like_markup
-                                            if tuple([elem['link'], elem['name']]) not in data[call.message.chat.id][
-                                                "like"]
+                                            if tuple([elem['link'], elem['name']])
+                                               not in data[call.message.chat.id]["like"]
                                             else dislike_markup)
         except:
             pass
@@ -277,9 +278,12 @@ async def call_handler_like(call: types.CallbackQuery):
 async def call_handler_dislike(call: types.CallbackQuery):
     link = call.message['caption_entities'][0]["url"]
     name = call.message.values["caption"]
-    data[call.from_user.id]["like"].remove(tuple([link, name]))
-
-    await call.message.edit_reply_markup(reply_markup=like_markup)
+    try:
+        data[call.from_user.id]["like"].remove(tuple([link, name]))
+    except KeyError:
+        pass
+    finally:
+        await call.message.edit_reply_markup(reply_markup=like_markup)
 
 
 def main():
