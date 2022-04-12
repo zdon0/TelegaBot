@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import aiohttp
 from random import shuffle
 
 import nest_asyncio
@@ -93,18 +94,26 @@ async def backpack(message: types.Message):
 async def show_like(message: types.Message):
     if len(data[message.chat.id]["like"]) == 0:
         await message.answer(text="Список пуст")
-    for elem in data[message.chat.id]["like"]:
-        try:
-            await message.answer_photo(photo=elem[2], caption=f"[{elem[1]}]({elem[0]})",
-                                       parse_mode="Markdown", disable_notification=True, reply_markup=dislike_markup)
-        except RetryAfter as error:
-            await asyncio.sleep(error.timeout)
-            await message.answer_photo(photo=elem[2], caption=f"[{elem[1]}]({elem[0]})",
-                                       parse_mode="Markdown", disable_notification=True, reply_markup=dislike_markup)
-        except:
-            pass
-        finally:
-            await asyncio.sleep(.1)
+
+    async with aiohttp.ClientSession() as session:
+        for elem in data[message.chat.id]["like"]:
+
+            if "shein" in elem[0]:
+                image_link = await shein.get_image(elem[0], session)
+            else:
+                image_link = await sportmaster.get_image(elem[0], session)
+
+            try:
+                await message.answer_photo(photo=image_link, caption=f"[{elem[1]}]({elem[0]})",
+                                           parse_mode="Markdown", disable_notification=True, reply_markup=dislike_markup)
+            except RetryAfter as error:
+                await asyncio.sleep(error.timeout)
+                await message.answer_photo(photo=image_link, caption=f"[{elem[1]}]({elem[0]})",
+                                           parse_mode="Markdown", disable_notification=True, reply_markup=dislike_markup)
+            except:
+                continue
+            finally:
+                await asyncio.sleep(.1)
 
 
 @dp.callback_query_handler(lambda call: True)
@@ -204,12 +213,16 @@ async def call_handler(call: types.CallbackQuery):
             try:
                 await call.message.answer_photo(photo=elem["photo"], caption=f"[{elem['name']}]({elem['link']})",
                                                 parse_mode="Markdown", disable_notification=True,
-                                                reply_markup=like_markup)
+                                                reply_markup=like_markup
+                                                if tuple([elem['link'], elem['name']]) not in data[call.message.chat.id]["like"]
+                                                else dislike_markup)
             except RetryAfter as error:
                 await asyncio.sleep(error.timeout)
                 await call.message.answer_photo(photo=elem["photo"], caption=f"[{elem['name']}]({elem['link']})",
                                                 parse_mode="Markdown", disable_notification=True,
-                                                reply_markup=like_markup)
+                                                reply_markup=like_markup
+                                                if tuple([elem['link'], elem['name']]) not in data[call.message.chat.id]["like"]
+                                                else dislike_markup)
             except:
                 pass
             finally:
@@ -220,8 +233,7 @@ async def call_handler(call: types.CallbackQuery):
     elif call.data == "like":
         url = call.message['caption_entities'][0]["url"]
         name = call.message['caption']
-        photo = call.message['photo'][-1]['file_id']
-        data[call.from_user.id]["like"].add(tuple([url, name, photo]))
+        data[call.from_user.id]["like"].add(tuple([url, name]))
         await call.message.edit_reply_markup(reply_markup=dislike_markup)
 
     elif call.data == "dislike":
@@ -233,7 +245,7 @@ async def call_handler(call: types.CallbackQuery):
         await call.message.edit_reply_markup(reply_markup=like_markup)
 
 
-if __name__ == '__main__':
+def main():
     nest_asyncio.apply()
     executor.start_polling(dp, skip_updates=True)
     for key in data.keys():
@@ -241,3 +253,7 @@ if __name__ == '__main__':
     with open('database.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4, default=lambda x: list(x))
     asyncio.run(bot.send_document(chat_id=-1001745130102, document=types.InputFile("./database.json")))
+
+
+if __name__ == '__main__':
+    main()

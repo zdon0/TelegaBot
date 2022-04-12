@@ -4,6 +4,10 @@ from bs4 import BeautifulSoup
 import aiohttp
 import asyncio
 
+
+headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                         '(KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36 OPR/84.0.4316.31'}
+
 connector = {
     "colors": {
         "red": "color_krasnyi",
@@ -37,8 +41,15 @@ connector2 = {
     }
 }
 
-headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                         '(KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36 OPR/84.0.4316.31'}
+
+async def get_image(url, session):
+    async with session.get(url=url, headers=headers) as response:
+        text = await response.text()
+
+    bs = BeautifulSoup(text, 'lxml')
+    find = bs.find("img", class_="swiper-lazy sm-image")
+    link = find.get("data-src")
+    return link
 
 
 async def page(params, session):

@@ -2,7 +2,6 @@ from aiogram import types
 from aiogram.utils import emoji
 
 
-
 back_button = types.InlineKeyboardButton(text='next➡', callback_data='next')
 next_button = types.InlineKeyboardButton(text='⬅back', callback_data='back')
 

@@ -5,11 +5,6 @@ from bs4 import BeautifulSoup
 import json
 from random import randint
 
-# headers = {
-#     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36 OPR/84.0.4316.31',
-#     "sec-ch-ua-platform": "Windows",
-#     "sec-ch-ua": ' Not A;Brand";v="99", "Chromium";v="98", "Opera";v="84'
-# }
 
 connector = {
     "values": {
@@ -36,6 +31,17 @@ connector = {
     }
 
 }
+
+
+async def get_image(url, session):
+    async with session.get(url=url) as response:
+        text = await response.text()
+    bs = BeautifulSoup(text, "lxml")
+    find = bs.find("script", text=re.compile("window.goodsDetailv2SsrData"))
+    start = find.text.index('origin_image":"//')
+    result = find.text[start+len('origin_image":"//'):start+150]
+    result = result[:result.index('"')]
+    return "https://"+result
 
 
 async def page(params, session):
