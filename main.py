@@ -86,7 +86,6 @@ async def help(message):
 
 @dp.message_handler(commands='clear')
 async def clear(message: types.Message):
-    a = set()
     data[message.chat.id]['like'].clear()
     await message.answer(text="Список очищен")
 
