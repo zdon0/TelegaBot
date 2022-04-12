@@ -1,15 +1,15 @@
 import asyncio
 import json
 import logging
-import aiohttp
 from random import shuffle
 
+import aiohttp
 import nest_asyncio
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.utils.exceptions import RetryAfter
 
 import chat
-import functions
+import markups
 import shein
 import sportmaster
 
@@ -43,13 +43,14 @@ try:
 except:
     data = dict()
 
-colors_markup = functions.colors1()
-types_markup = functions.types1()
-volumeFrom_markup = functions.volume1()
-volumeTo_markup = functions.volume2()
-price_markup = functions.price1()
-like_markup = functions.like()
-dislike_markup = functions.dislike()
+colors_markup = markups.colors1()
+types_markup = markups.types1()
+volumeFrom_markup = markups.volume1()
+volumeTo_markup = markups.volume2()
+price_markup = markups.price1()
+like_markup = markups.like()
+dislike_markup = markups.dislike()
+reply_markup = markups.reply_keyboard()
 
 markups = [colors_markup, types_markup, volumeFrom_markup, volumeTo_markup, price_markup]
 texts = ['Выберите цвет', 'Выберите тип рюкзака', 'Объем в литрах', 'Объем в литрах', 'Выберите цену']
@@ -57,7 +58,7 @@ texts = ['Выберите цвет', 'Выберите тип рюкзака', 
 
 @dp.message_handler(commands='start')
 async def start(message: types.Message):
-    await message.answer(text='Вас приветствует MIKA Bot!', reply_markup=functions.reply_keyboard())
+    await message.answer(text='Вас приветствует MIKA Bot!', reply_markup=reply_markup)
     data[message.chat.id] = {
         "ans": None,
         "name": message.chat.first_name,
@@ -82,7 +83,7 @@ async def clear(message: types.Message):
 
 @dp.message_handler(content_types='text', text="Парсер рюкзака")
 async def backpack(message: types.Message):
-    await message.answer(text='Выберите цвет', reply_markup=functions.colors1())
+    await message.answer(text='Выберите цвет', reply_markup=colors_markup)
     ans = await message.answer(text=f'Цвет: \nТип: \nОбъем ОТ: \nОбъем ДО: \nЦена: ')
     data[message.chat.id]["ans"] = ans
     data[message.chat.id]['i'] = 0
@@ -94,155 +95,177 @@ async def backpack(message: types.Message):
 async def show_like(message: types.Message):
     if len(data[message.chat.id]["like"]) == 0:
         await message.answer(text="Список пуст")
+        return
+    loop = asyncio.get_event_loop()
+    ans = await message.answer(text="Загрузка")
+    waiter = loop.create_task(chat.waiter(ans, text="Загрузка"))
+
+    bags = list(data[message.chat.id]["like"])
+    sportmaster_bags = list(filter(lambda x: "sport" in x[0], bags))
+    shein_bags = list(filter(lambda x: "shein" in x[0], bags))
 
     async with aiohttp.ClientSession() as session:
-        for elem in data[message.chat.id]["like"]:
+        tasks = [asyncio.ensure_future(sportmaster.get_image(bag[0], session)) for bag in sportmaster_bags]
+        tasks += [asyncio.ensure_future(shein.get_image(bag[0], session)) for bag in shein_bags]
+        result = loop.run_until_complete(asyncio.gather(*tasks))
 
-            if "shein" in elem[0]:
-                image_link = await shein.get_image(elem[0], session)
-            else:
-                image_link = await sportmaster.get_image(elem[0], session)
+    waiter.cancel()
+    await ans.delete()
+    for i in range(len(bags)):
+        elem = bags[i]
+        image_link = result[i]
+        try:
+            await message.answer_photo(photo=image_link, caption=f"[{elem[1]}]({elem[0]})",
+                                       parse_mode="Markdown", disable_notification=True, reply_markup=dislike_markup)
+        except RetryAfter as error:
+            await asyncio.sleep(error.timeout)
+            await message.answer_photo(photo=image_link, caption=f"[{elem[1]}]({elem[0]})",
+                                       parse_mode="Markdown", disable_notification=True, reply_markup=dislike_markup)
+        except:
+            continue
+        finally:
+            await asyncio.sleep(.1)
 
-            try:
-                await message.answer_photo(photo=image_link, caption=f"[{elem[1]}]({elem[0]})",
-                                           parse_mode="Markdown", disable_notification=True, reply_markup=dislike_markup)
-            except RetryAfter as error:
-                await asyncio.sleep(error.timeout)
-                await message.answer_photo(photo=image_link, caption=f"[{elem[1]}]({elem[0]})",
-                                           parse_mode="Markdown", disable_notification=True, reply_markup=dislike_markup)
-            except:
-                continue
-            finally:
-                await asyncio.sleep(.1)
+
+@dp.callback_query_handler(lambda call: call.data in colors)
+async def call_handler_colors(call: types.CallbackQuery):
+    if call.data in data[call.from_user.id]['filters']['colors']:
+        data[call.from_user.id]['filters']['colors'].remove(call.data)
+    else:
+        data[call.from_user.id]['filters']['colors'].add(call.data)
+
+    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
 
-@dp.callback_query_handler(lambda call: True)
-async def call_handler(call: types.CallbackQuery):
-    if call.data in colors:
+@dp.callback_query_handler(lambda call: call.data in chars)
+async def call_handler_chars(call: types.CallbackQuery):
+    if call.data in data[call.from_user.id]['filters']['types']:
+        data[call.from_user.id]['filters']['types'].remove(call.data)
+    else:
+        data[call.from_user.id]['filters']['types'].add(call.data)
 
-        if call.data in data[call.from_user.id]['filters']['colors']:
-            data[call.from_user.id]['filters']['colors'].remove(call.data)
-        else:
-            data[call.from_user.id]['filters']['colors'].add(call.data)
+    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
-        await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
-    elif call.data in chars:
+@dp.callback_query_handler(lambda call: call.data in volumes_1)
+async def call_handler_volumes1(call: types.CallbackQuery):
+    if data[call.from_user.id]['filters']['volume_1'] == call.data:
+        data[call.from_user.id]['filters']['volume_1'] = set()
+    else:
+        data[call.from_user.id]['filters']['volume_1'] = call.data
 
-        if call.data in data[call.from_user.id]['filters']['types']:
-            data[call.from_user.id]['filters']['types'].remove(call.data)
-        else:
-            data[call.from_user.id]['filters']['types'].add(call.data)
+    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
-        await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
-    elif call.data in volumes_1:
+@dp.callback_query_handler(lambda call: call.data in volumes_2)
+async def call_handler_volumes2(call: types.CallbackQuery):
+    if data[call.from_user.id]['filters']['volume_2'] == call.data:
+        data[call.from_user.id]['filters']['volume_2'] = set()
+    else:
+        data[call.from_user.id]['filters']['volume_2'] = call.data
 
-        if data[call.from_user.id]['filters']['volume_1'] == call.data:
-            data[call.from_user.id]['filters']['volume_1'] = set()
-        else:
-            data[call.from_user.id]['filters']['volume_1'] = call.data
+    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
-        await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
-    elif call.data in volumes_2:
+@dp.callback_query_handler(lambda call: call.data in prices)
+async def call_handler_prices(call: types.CallbackQuery):
+    if data[call.from_user.id]['filters']['price'] == call.data:
+        data[call.from_user.id]['filters']['price'] = set()
+    else:
+        data[call.from_user.id]['filters']['price'] = call.data
 
-        if data[call.from_user.id]['filters']['volume_2'] == call.data:
-            data[call.from_user.id]['filters']['volume_2'] = set()
-        else:
-            data[call.from_user.id]['filters']['volume_2'] = call.data
+    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
-        await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
-    elif call.data in prices:
+@dp.callback_query_handler(lambda call: call.data == "next")
+async def call_handler_next(call: types.CallbackQuery):
+    await call.message.edit_text(text=texts[data[call.from_user.id]['i'] + 1],
+                                 reply_markup=markups[data[call.from_user.id]['i'] + 1])
+    data[call.from_user.id]['i'] += 1
 
-        if data[call.from_user.id]['filters']['price'] == call.data:
-            data[call.from_user.id]['filters']['price'] = set()
-        else:
-            data[call.from_user.id]['filters']['price'] = call.data
 
-        await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
+@dp.callback_query_handler(lambda call: call.data == "back")
+async def call_handler_back(call: types.CallbackQuery):
+    await call.message.edit_text(text=texts[data[call.from_user.id]['i'] - 1],
+                                 reply_markup=markups[data[call.from_user.id]['i'] - 1])
+    data[call.from_user.id]['i'] -= 1
 
-    elif call.data == 'next':
 
-        data[call.from_user.id]['i'] += 1
-        await call.message.edit_text(text=texts[data[call.from_user.id]['i']],
-                                     reply_markup=markups[data[call.from_user.id]['i']])
+@dp.callback_query_handler(lambda call: call.data == "parse")
+async def call_handler_parse(call: types.CallbackQuery):
+    loop = asyncio.get_event_loop()
+    waiter = loop.create_task(chat.waiter(call.message))
 
-    elif call.data == 'back':
+    filters = dict()
+    for key in data[call.from_user.id]["filters"].keys():
+        filters[key] = data[call.from_user.id]["filters"][key]
 
-        data[call.from_user.id]['i'] -= 1
-        await call.message.edit_text(text=texts[data[call.from_user.id]['i']],
-                                     reply_markup=markups[data[call.from_user.id]['i']])
+    if not filters["colors"]:
+        filters["colors"] = colors
+    if not filters["types"]:
+        filters["types"] = chars
+    if not filters["volume_1"]:
+        filters["volume_1"] = "10_ot"
+    if not filters["volume_2"]:
+        filters["volume_2"] = ">25"
+    if not filters["price"]:
+        filters["price"] = ">10K"
 
-    elif call.data == "parse":
-        loop = asyncio.get_event_loop()
-        waiter = loop.create_task(chat.waiter(call.message))
+    if filters != data[call.from_user.id]["filters"]:
+        await chat.changer(data[call.from_user.id]['ans'], filters)
 
-        filters = dict()
-        for key in data[call.from_user.id]["filters"].keys():
-            filters[key] = data[call.from_user.id]["filters"][key]
+    tasks = [asyncio.ensure_future(f) for f in [sportmaster.parser(loop, filters),
+                                                shein.parser(loop, filters)]]
+    res = loop.run_until_complete(asyncio.gather(*tasks))
+    result = []
+    for elem in res:
+        for item in elem:
+            result.append(item)
+    shuffle(result)
+    waiter.cancel()
+    await call.message.delete()
+    for elem in result:
+        if data[call.message.chat.id]["stop"]:
+            break
+        try:
+            await call.message.answer_photo(photo=elem["photo"], caption=f"[{elem['name']}]({elem['link']})",
+                                            parse_mode="Markdown", disable_notification=True,
+                                            reply_markup=like_markup
+                                            if tuple([elem['link'], elem['name']]) not in data[call.message.chat.id][
+                                                "like"]
+                                            else dislike_markup)
+        except RetryAfter as error:
+            await asyncio.sleep(error.timeout)
+            await call.message.answer_photo(photo=elem["photo"], caption=f"[{elem['name']}]({elem['link']})",
+                                            parse_mode="Markdown", disable_notification=True,
+                                            reply_markup=like_markup
+                                            if tuple([elem['link'], elem['name']]) not in data[call.message.chat.id][
+                                                "like"]
+                                            else dislike_markup)
+        except:
+            pass
+        finally:
+            await asyncio.sleep(.1)
+    await data[call.from_user.id]["ans"].reply(text="Поиск завершен")
+    data[call.message.chat.id]["stop"] = False
 
-        if not filters["colors"]:
-            filters["colors"] = colors
-        if not filters["types"]:
-            filters["types"] = chars
-        if not filters["volume_1"]:
-            filters["volume_1"] = "10_ot"
-        if not filters["volume_2"]:
-            filters["volume_2"] = ">25"
-        if not filters["price"]:
-            filters["price"] = ">10K"
 
-        if filters != data[call.from_user.id]["filters"]:
-            await chat.changer(data[call.from_user.id]['ans'], filters)
+@dp.callback_query_handler(lambda call: call.data == "like")
+async def call_handler_like(call: types.CallbackQuery):
+    url = call.message['caption_entities'][0]["url"]
+    name = call.message['caption']
+    data[call.from_user.id]["like"].add(tuple([url, name]))
+    await call.message.edit_reply_markup(reply_markup=dislike_markup)
 
-        tasks = [asyncio.ensure_future(f) for f in [sportmaster.parser(loop, filters),
-                                                    shein.parser(loop, filters)]]
-        res = loop.run_until_complete(asyncio.gather(*tasks))
-        result = []
-        for elem in res:
-            for item in elem:
-                result.append(item)
-        shuffle(result)
-        waiter.cancel()
-        await call.message.delete()
-        for elem in result:
-            if data[call.message.chat.id]["stop"]:
-                break
-            try:
-                await call.message.answer_photo(photo=elem["photo"], caption=f"[{elem['name']}]({elem['link']})",
-                                                parse_mode="Markdown", disable_notification=True,
-                                                reply_markup=like_markup
-                                                if tuple([elem['link'], elem['name']]) not in data[call.message.chat.id]["like"]
-                                                else dislike_markup)
-            except RetryAfter as error:
-                await asyncio.sleep(error.timeout)
-                await call.message.answer_photo(photo=elem["photo"], caption=f"[{elem['name']}]({elem['link']})",
-                                                parse_mode="Markdown", disable_notification=True,
-                                                reply_markup=like_markup
-                                                if tuple([elem['link'], elem['name']]) not in data[call.message.chat.id]["like"]
-                                                else dislike_markup)
-            except:
-                pass
-            finally:
-                await asyncio.sleep(.1)
-        await data[call.from_user.id]["ans"].reply(text="Поиск завершен")
-        data[call.message.chat.id]["stop"] = False
 
-    elif call.data == "like":
-        url = call.message['caption_entities'][0]["url"]
-        name = call.message['caption']
-        data[call.from_user.id]["like"].add(tuple([url, name]))
-        await call.message.edit_reply_markup(reply_markup=dislike_markup)
-
-    elif call.data == "dislike":
-        url = call.message['caption_entities'][0]["url"]
-        for elem in data[call.from_user.id]["like"]:
-            if elem[0] == url:
-                data[call.from_user.id]["like"].remove(elem)
-                break
-        await call.message.edit_reply_markup(reply_markup=like_markup)
+@dp.callback_query_handler(lambda call: call.data == "dislike")
+async def call_handler_dislike(call: types.CallbackQuery):
+    url = call.message['caption_entities'][0]["url"]
+    for elem in data[call.from_user.id]["like"]:
+        if elem[0] == url:
+            data[call.from_user.id]["like"].remove(elem)
+            break
+    await call.message.edit_reply_markup(reply_markup=like_markup)
 
 
 def main():
@@ -252,7 +275,7 @@ def main():
         data[key]['ans'] = None
     with open('database.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4, default=lambda x: list(x))
-    asyncio.run(bot.send_document(chat_id=-1001745130102, document=types.InputFile("./database.json")))
+    # asyncio.run(bot.send_document(chat_id=-1001745130102, document=types.InputFile("./database.json")))
 
 
 if __name__ == '__main__':

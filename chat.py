@@ -1,12 +1,13 @@
 import asyncio
+
 from aiogram.utils import emoji
 
 
-async def waiter(ans):
+async def waiter(ans, text="Поиск"):
     c = 1
     while True:
-        s = '.'*c
-        await ans.edit_text(text=f'Поиск{s}')
+        s = '.' * c
+        await ans.edit_text(text=f'{text}{s}')
         await asyncio.sleep(.5)
         c = (c + 1) % 4
 
