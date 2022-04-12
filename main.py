@@ -61,7 +61,7 @@ async def start(message: types.Message):
     await message.answer(text='Вас приветствует MIKA Bot!', reply_markup=reply_markup)
     data[message.chat.id] = {
         "ans": None,
-        "name": message.chat.first_name,
+        "name": message.chat.full_name,
         "link": message.chat.username,
         "i": 0,
         "filters": {'colors': set(), 'types': set(), 'volume_1': set(), 'volume_2': set(), 'price': set()},
@@ -73,6 +73,15 @@ async def start(message: types.Message):
 @dp.message_handler(commands='stop')
 async def stop(message):
     data[message.chat.id]["stop"] = True
+
+
+@dp.message_handler(commands='help')
+async def help(message):
+    await message.answer(text=
+                         "Справка:\n" \
+                         "1)Чтобы добавить рюкзак в список желаний, нажмите на кнопку с красным сердцем под нужным рюкзаком\n" \
+                         "2)Чтобы очистить список желаний, нажмите на пункт /clear в левом нижнем меню или пропишите /clear в чат\n" \
+                         "3)Чтобы остановить процесс поиска, нажмите на пункт /stop в левом нижнем меню или пропишите /stop в чат")
 
 
 @dp.message_handler(commands='clear')
@@ -125,6 +134,12 @@ async def show_like(message: types.Message):
             continue
         finally:
             await asyncio.sleep(.1)
+
+
+@dp.message_handler(content_types='text')
+async def not_ready(message: types.Message):
+    print(f"{message.from_user.full_name}: {message.text}")
+    await message.reply(text="Всему свое время")
 
 
 @dp.callback_query_handler(lambda call: call.data in colors)
@@ -216,9 +231,9 @@ async def call_handler_parse(call: types.CallbackQuery):
 
     tasks = [asyncio.ensure_future(f) for f in [sportmaster.parser(loop, filters),
                                                 shein.parser(loop, filters)]]
-    res = loop.run_until_complete(asyncio.gather(*tasks))
+
     result = []
-    for elem in res:
+    for elem in loop.run_until_complete(asyncio.gather(*tasks)):
         for item in elem:
             result.append(item)
     shuffle(result)
@@ -252,9 +267,9 @@ async def call_handler_parse(call: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda call: call.data == "like")
 async def call_handler_like(call: types.CallbackQuery):
-    url = call.message['caption_entities'][0]["url"]
+    link = call.message['caption_entities'][0]["url"]
     name = call.message['caption']
-    data[call.from_user.id]["like"].add(tuple([url, name]))
+    data[call.from_user.id]["like"].add(tuple([link, name]))
     await call.message.edit_reply_markup(reply_markup=dislike_markup)
 
 
@@ -269,7 +284,7 @@ async def call_handler_dislike(call: types.CallbackQuery):
 
 def main():
     nest_asyncio.apply()
-    executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp)
     for key in data.keys():
         data[key]['ans'] = None
     with open('database.json', 'w', encoding='utf-8') as file:
