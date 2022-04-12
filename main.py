@@ -260,11 +260,10 @@ async def call_handler_like(call: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda call: call.data == "dislike")
 async def call_handler_dislike(call: types.CallbackQuery):
-    url = call.message['caption_entities'][0]["url"]
-    for elem in data[call.from_user.id]["like"]:
-        if elem[0] == url:
-            data[call.from_user.id]["like"].remove(elem)
-            break
+    link = call.message['caption_entities'][0]["url"]
+    name = call.message.values["caption"]
+    data[call.from_user.id]["like"].remove(tuple([link, name]))
+
     await call.message.edit_reply_markup(reply_markup=like_markup)
 
 
