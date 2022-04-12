@@ -240,3 +240,4 @@ if __name__ == '__main__':
         data[key]['ans'] = None
     with open('database.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4, default=lambda x: list(x))
+    asyncio.run(bot.send_document(chat_id=-1001745130102, document=types.InputFile("./database.json")))
