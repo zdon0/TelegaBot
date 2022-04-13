@@ -4,7 +4,6 @@ import logging
 from random import shuffle
 
 import aiohttp
-import nest_asyncio
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.utils.exceptions import RetryAfter
 
@@ -103,9 +102,9 @@ async def show_like(message: types.Message):
     if len(data[message.chat.id]["like"]) == 0:
         await message.answer(text="Список пуст")
         return
-    loop = asyncio.get_event_loop()
+
     ans = await message.answer(text="Загрузка")
-    waiter = loop.create_task(functions.waiter(ans, text="Загрузка"))
+    waiter = asyncio.create_task(functions.waiter(ans, text="Загрузка"))
 
     bags = list(data[message.chat.id]["like"])
     sportmaster_bags = list(filter(lambda x: "sport" in x[0], bags))
@@ -114,7 +113,7 @@ async def show_like(message: types.Message):
     async with aiohttp.ClientSession() as session:
         tasks = [asyncio.ensure_future(sportmaster.get_image(bag[0], session)) for bag in sportmaster_bags]
         tasks += [asyncio.ensure_future(shein.get_image(bag[0], session)) for bag in shein_bags]
-        result = loop.run_until_complete(asyncio.gather(*tasks))
+        result = await asyncio.gather(*tasks)
 
     waiter.cancel()
     await ans.delete()
@@ -206,12 +205,9 @@ async def call_handler_back(call: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda call: call.data == "parse")
 async def call_handler_parse(call: types.CallbackQuery):
-    loop = asyncio.get_event_loop()
-    waiter = loop.create_task(functions.waiter(call.message))
 
-    filters = dict()
-    for key in data[call.from_user.id]["filters"].keys():
-        filters[key] = data[call.from_user.id]["filters"][key]
+    waiter = asyncio.create_task(functions.waiter(call.message))
+    filters = dict(**data[call.from_user.id]["filters"])
 
     if not filters["colors"]:
         filters["colors"] = colors
@@ -227,11 +223,11 @@ async def call_handler_parse(call: types.CallbackQuery):
     if filters != data[call.from_user.id]["filters"]:
         await functions.changer(data[call.from_user.id]['ans'], filters)
 
-    tasks = [asyncio.ensure_future(f) for f in [sportmaster.parser(loop, filters),
-                                                shein.parser(loop, filters)]]
-
     result = []
-    for elem in loop.run_until_complete(asyncio.gather(*tasks)):
+    tasks = [asyncio.ensure_future(f) for f in [sportmaster.parser(filters),
+                                                shein.parser(filters)]]
+
+    for elem in await asyncio.gather(*tasks):
         for item in elem:
             result.append(item)
     shuffle(result)
@@ -284,7 +280,6 @@ async def call_handler_dislike(call: types.CallbackQuery):
 
 
 def main():
-    nest_asyncio.apply()
     executor.start_polling(dp)
     for key in data.keys():
         data[key]['ans'] = None

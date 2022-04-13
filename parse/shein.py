@@ -50,7 +50,7 @@ async def page(params, session):
     price = connector["price"][params["price"]]
 
     blank = f'https://ru.shein.com/Men-Backpacks-c-2126.html?attr_values={color_val}&attr_ids={color_ids}&max_price={price}&exc_attr_id={randint(20, 2000)}'
-    # print(blank)
+
     async with session.get(url=blank, headers={}, timeout=5) as response:
         bs = BeautifulSoup(await response.text(), 'lxml')
 
@@ -67,7 +67,7 @@ async def page(params, session):
     return result
 
 
-async def parser(loop, params):
+async def parser(params):
     tasks = []
     if params["types"] == {"turist"}:
         return []
@@ -87,7 +87,7 @@ async def parser(loop, params):
             tasks += [asyncio.ensure_future(page(loop_params, session))]
 
         result = []
-        for elem in loop.run_until_complete(asyncio.gather(*tasks)):
+        for elem in await asyncio.gather(*tasks):
             for item in elem:
                 result += [item]
     return result

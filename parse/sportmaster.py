@@ -53,7 +53,6 @@ async def get_image(url, session):
 
 
 async def page(params, session):
-    # print("start:", params["colors"], params["types"])
     volume_from = connector2["volume1"][params["volume_1"]]
     volume_to = connector2["volume2"][params["volume_2"]]
     price_to = connector2["price"][params["price"]]
@@ -64,16 +63,14 @@ async def page(params, session):
     blank = f"https://www.sportmaster.ru/catalog/aksessuary/ryukzaki_i_sumki/ryukzaki/?f-id_ware_subgrp={type}" \
             f"&f-volumefrom={volume_from}&f-volumeto={volume_to}" \
             f"&f-priceto={price_to}&f-clr={color}&sortType=BY_POPULARITY"
-    # print(blank)
+
     async with session.get(url=blank, headers=headers) as response:
-        # print("connect:", params["colors"], params["types"])
         text = await response.text()
 
     bs = BeautifulSoup(text, 'lxml')
     find = bs.find('script', text=re.compile('searchResult')).text.replace(r'\u002F', r'/')
     find = find[find.index('{'):find.index(";(function(){var s;(s=document.currentScript")]
     find = json.loads(find)['searchResult']['products']
-    # print("process:", params["colors"], params["types"])
 
     for elem in find:
         name = elem['name']
@@ -88,7 +85,7 @@ async def page(params, session):
     return result
 
 
-async def parser(loop, params):
+async def parser(params):
     tasks = []
     if not params['colors']:
         params['colors'] = {"red", "black", "white", "green"}
@@ -112,7 +109,7 @@ async def parser(loop, params):
                 tasks += [asyncio.ensure_future(page(loop_params, session))]
 
         result = []
-        for elem in loop.run_until_complete(asyncio.gather(*tasks)):
+        for elem in await asyncio.gather(*tasks):
             for item in elem:
                 result += [item]
     return result
