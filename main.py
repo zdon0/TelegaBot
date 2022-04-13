@@ -8,13 +8,11 @@ import nest_asyncio
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.utils.exceptions import RetryAfter
 
-import chat
-import markups
-import shein
-import sportmaster
+from chat import markups, functions
+from parse import shein, sportmaster
 
 logging.basicConfig(level=logging.INFO)
-with open('token', 'r') as file:
+with open('service/token', 'r') as file:
     bot = Bot(token=file.readline().strip())
 dp = Dispatcher(bot)
 
@@ -27,7 +25,7 @@ volumes_2 = {'15_do', '20_do', '25_do', '>25'}
 prices = {'3K', '5K', '10K', '>10K'}
 
 try:
-    with open('database.json', 'r', encoding='utf-8') as file:
+    with open('service/database.json', 'r', encoding='utf-8') as file:
         data = json.load(file)
 
     for key in list(data.keys()):
@@ -97,7 +95,7 @@ async def backpack(message: types.Message):
     data[message.chat.id]["ans"] = ans
     data[message.chat.id]['i'] = 0
     data[message.chat.id]["stop"] = False
-    await chat.changer(data[message.chat.id]["ans"], data[message.chat.id]["filters"])
+    await functions.changer(data[message.chat.id]["ans"], data[message.chat.id]["filters"])
 
 
 @dp.message_handler(content_types='text', text="Список желаний")
@@ -107,7 +105,7 @@ async def show_like(message: types.Message):
         return
     loop = asyncio.get_event_loop()
     ans = await message.answer(text="Загрузка")
-    waiter = loop.create_task(chat.waiter(ans, text="Загрузка"))
+    waiter = loop.create_task(functions.waiter(ans, text="Загрузка"))
 
     bags = list(data[message.chat.id]["like"])
     sportmaster_bags = list(filter(lambda x: "sport" in x[0], bags))
@@ -149,7 +147,7 @@ async def call_handler_colors(call: types.CallbackQuery):
     else:
         data[call.from_user.id]['filters']['colors'].add(call.data)
 
-    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
+    await functions.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
 
 @dp.callback_query_handler(lambda call: call.data in chars)
@@ -159,7 +157,7 @@ async def call_handler_chars(call: types.CallbackQuery):
     else:
         data[call.from_user.id]['filters']['types'].add(call.data)
 
-    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
+    await functions.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
 
 @dp.callback_query_handler(lambda call: call.data in volumes_1)
@@ -169,7 +167,7 @@ async def call_handler_volumes1(call: types.CallbackQuery):
     else:
         data[call.from_user.id]['filters']['volume_1'] = call.data
 
-    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
+    await functions.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
 
 @dp.callback_query_handler(lambda call: call.data in volumes_2)
@@ -179,7 +177,7 @@ async def call_handler_volumes2(call: types.CallbackQuery):
     else:
         data[call.from_user.id]['filters']['volume_2'] = call.data
 
-    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
+    await functions.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
 
 @dp.callback_query_handler(lambda call: call.data in prices)
@@ -189,7 +187,7 @@ async def call_handler_prices(call: types.CallbackQuery):
     else:
         data[call.from_user.id]['filters']['price'] = call.data
 
-    await chat.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
+    await functions.changer(data[call.from_user.id]["ans"], data[call.from_user.id]["filters"])
 
 
 @dp.callback_query_handler(lambda call: call.data == "next")
@@ -209,7 +207,7 @@ async def call_handler_back(call: types.CallbackQuery):
 @dp.callback_query_handler(lambda call: call.data == "parse")
 async def call_handler_parse(call: types.CallbackQuery):
     loop = asyncio.get_event_loop()
-    waiter = loop.create_task(chat.waiter(call.message))
+    waiter = loop.create_task(functions.waiter(call.message))
 
     filters = dict()
     for key in data[call.from_user.id]["filters"].keys():
@@ -227,7 +225,7 @@ async def call_handler_parse(call: types.CallbackQuery):
         filters["price"] = ">10K"
 
     if filters != data[call.from_user.id]["filters"]:
-        await chat.changer(data[call.from_user.id]['ans'], filters)
+        await functions.changer(data[call.from_user.id]['ans'], filters)
 
     tasks = [asyncio.ensure_future(f) for f in [sportmaster.parser(loop, filters),
                                                 shein.parser(loop, filters)]]
@@ -290,7 +288,7 @@ def main():
     executor.start_polling(dp)
     for key in data.keys():
         data[key]['ans'] = None
-    with open('database.json', 'w', encoding='utf-8') as file:
+    with open('service/database.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4, default=lambda x: list(x))
     # asyncio.run(bot.send_document(chat_id=-1001745130102, document=types.InputFile("./database.json")))
 

@@ -1,10 +1,10 @@
-import re
-import aiohttp
 import asyncio
-from bs4 import BeautifulSoup
 import json
+import re
 from random import randint
 
+import aiohttp
+from bs4 import BeautifulSoup
 
 connector = {
     "values": {
