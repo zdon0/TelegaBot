@@ -109,6 +109,7 @@ async def show_like(message: types.Message):
     bags = list(data[message.chat.id]["like"])
     sportmaster_bags = list(filter(lambda x: "sport" in x[0], bags))
     shein_bags = list(filter(lambda x: "shein" in x[0], bags))
+    bags = sportmaster_bags + shein_bags
 
     async with aiohttp.ClientSession() as session:
         tasks = [asyncio.ensure_future(sportmaster.get_image(bag[0], session)) for bag in sportmaster_bags]
@@ -283,6 +284,7 @@ def main():
     executor.start_polling(dp)
     for key in data.keys():
         data[key]['ans'] = None
+
     with open('service/database.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4, default=lambda x: list(x))
     # asyncio.run(bot.send_document(chat_id=-1001745130102, document=types.InputFile("./database.json")))
