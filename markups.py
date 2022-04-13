@@ -9,7 +9,7 @@ ways = [next_button, back_button]
 
 
 def reply_keyboard():
-    button = types.KeyboardButton(text='Парсер рюкзака')
+    button = types.KeyboardButton(text='Поиск рюкзака')
     like_button = types.KeyboardButton(text='Список желаний')
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(button)

@@ -90,7 +90,7 @@ async def clear(message: types.Message):
     await message.answer(text="Список очищен")
 
 
-@dp.message_handler(content_types='text', text="Парсер рюкзака")
+@dp.message_handler(content_types='text', text=["Парсер рюкзака", "Поиск рюкзака"])
 async def backpack(message: types.Message):
     await message.answer(text='Выберите цвет', reply_markup=colors_markup)
     ans = await message.answer(text=f'Цвет: \nТип: \nОбъем ОТ: \nОбъем ДО: \nЦена: ')
