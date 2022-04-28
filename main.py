@@ -11,8 +11,13 @@ from chat import markups, functions
 from parse import shein, sportmaster
 
 logging.basicConfig(level=logging.INFO)
-with open('service/token', 'r') as file:
-    bot = Bot(token=file.readline().strip())
+
+try:
+    with open('service/token', 'r') as file:
+        bot = Bot(token=file.readline().strip())
+except:
+    raise
+
 dp = Dispatcher(bot)
 
 don_id = 453_998_679
