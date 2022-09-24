@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from random import shuffle
 
 import aiohttp
@@ -13,8 +14,7 @@ from parse import shein, sportmaster
 logging.basicConfig(level=logging.INFO)
 
 try:
-    with open('service/token', 'r') as file:
-        bot = Bot(token=file.readline().strip())
+    bot = Bot(token=os.getenv("TOKEN"))
 except:
     raise
 
